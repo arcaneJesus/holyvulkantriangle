@@ -11,7 +11,7 @@ use vulkanalia::loader::{LibloadingLoader,LIBRARY};
 use vulkanalia::window as vk_window;
 use vulkanalia::prelude::v1_0::*;
 use vulkanalia::Version;
-use vulkanalia::vk::{ExtDebugUtilsExtension, KhrSurfaceExtension};
+use vulkanalia::vk::{ExtDebugUtilsExtension, KhrSurfaceExtension, KhrSwapchainExtension};
 use winit::dpi::LogicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -24,6 +24,7 @@ use thiserror::Error;
 const PORTABILITY_MACOS_VERSION: Version = Version::new(1, 3, 216);
 const VALIDATION_ENABLED: bool = cfg!(debug_assertions);
 const VALIDATION_LAYER: vk::ExtensionName = vk::ExtensionName::from_bytes(b"VK_LAYER_KHRONOS_validation");
+const DEVICE_EXTENSIONS: &[vk::ExtensionName] = &[vk::KHR_SWAPCHAIN_EXTENSION.name];
 
 fn main() -> Result<()> {
     pretty_env_logger::init();
@@ -135,6 +136,22 @@ unsafe fn pick_physical_device(instance: &Instance, data: &mut AppData) -> Resul
     Err(anyhow!("Failed to find suitable physical device."))
 }
 
+unsafe fn check_physical_device_extensions(
+    instance: &Instance,
+    physical_device: vk::PhysicalDevice,
+) -> Result<()> {
+    let extensions = instance
+        .enumerate_device_extension_properties(physical_device, None)?
+        .iter()
+        .map(|e| e.extension_name)
+        .collect::<HashSet<_>>();
+    if DEVICE_EXTENSIONS.iter().all(|e| extensions.contains(e)) {
+        Ok(())
+    } else {
+        Err(anyhow!(SuitabilityError("Missing required device extensions.")))
+    }
+}
+
 unsafe fn check_physical_device(
     instance: &Instance,
     data: &AppData,
@@ -145,6 +162,7 @@ unsafe fn check_physical_device(
         return Err(anyhow!(SuitabilityError("Missing geometry shader support.")));
     }
     QueueFamilyIndices::get(instance,data,physical_device)?;
+    check_physical_device_extensions(instance, physical_device)?;
     Ok(())
 }
 
@@ -203,7 +221,7 @@ unsafe fn create_logical_device(
     let mut extensions = vec![];
 
     if cfg!(target_os = "macos") && entry.version()? >= PORTABILITY_MACOS_VERSION {
-        extensions.push(vk::KHR_PORTABILITY_SUBSET_EXTENSION.as_ptr());
+        extensions.push(vk::KHR_PORTABILITY_SUBSET_EXTENSION.name.as_ptr());
     }
     let features = vk::PhysicalDeviceFeatures::builder();
     let queue_infos = unique_indices
