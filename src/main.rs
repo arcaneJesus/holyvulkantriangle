@@ -163,7 +163,38 @@ unsafe fn check_physical_device(
     }
     QueueFamilyIndices::get(instance,data,physical_device)?;
     check_physical_device_extensions(instance, physical_device)?;
+    let support = SwapchainSupport::get(instance,data,physical_device)?;
+    if support.formats.is_empty() || support.present_modes.is_empty() {
+        return Err(anyhow!(SuitabilityError("Insufficient swapchain support.")));
+    }
     Ok(())
+}
+
+#[derive(Clone, Debug)]
+struct SwapchainSupport {
+    capabilities: vk::SurfaceCapabilitiesKHR,
+    formats: Vec<vk::SurfaceFormatKHR>,
+    present_modes: Vec<vk::PresentModeKHR>,
+}
+
+impl SwapchainSupport {
+    unsafe fn get(
+        instance: &Instance,
+        data: &AppData,
+        physical_device: vk::PhysicalDevice,
+    ) -> Result<Self> {
+        Ok(Self {
+            capabilities: instance
+                .get_physical_device_surface_capabilities_khr(
+                physical_device,data.surface)?,
+            formats: instance
+                .get_physical_device_surface_formats_khr(
+                    physical_device,data.surface)?,
+            present_modes: instance
+                .get_physical_device_surface_present_modes_khr(
+                    physical_device, data.surface)?,
+        })
+    }
 }
 
 #[derive(Copy,Clone,Debug)]
@@ -218,7 +249,9 @@ unsafe fn create_logical_device(
     } else {
         vec![]
     };
-    let mut extensions = vec![];
+    let mut extensions = DEVICE_EXTENSIONS
+        .iter().map(|n| n.as_ptr())
+        .collect::<Vec<_>>();
 
     if cfg!(target_os = "macos") && entry.version()? >= PORTABILITY_MACOS_VERSION {
         extensions.push(vk::KHR_PORTABILITY_SUBSET_EXTENSION.name.as_ptr());
