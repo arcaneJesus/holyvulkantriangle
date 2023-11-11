@@ -158,9 +158,6 @@ unsafe fn check_physical_device(
     physical_device: vk::PhysicalDevice,
 ) -> Result<()> {
     let features = instance.get_physical_device_features(physical_device);
-    if features.geometry_shader != vk::TRUE {
-        return Err(anyhow!(SuitabilityError("Missing geometry shader support.")));
-    }
     QueueFamilyIndices::get(instance,data,physical_device)?;
     check_physical_device_extensions(instance, physical_device)?;
     let support = SwapchainSupport::get(instance,data,physical_device)?;
@@ -400,6 +397,11 @@ unsafe fn create_swapchain_image_views(
     Ok(())
 }
 
+unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
+
+    Ok(())
+}
+
 extern "system" fn debug_callback(
     severity: vk::DebugUtilsMessageSeverityFlagsEXT,
     type_: vk::DebugUtilsMessageTypeFlagsEXT,
@@ -443,6 +445,7 @@ impl App {
         let device = create_logical_device(&entry,&instance,&mut data)?;
         create_swapchain(window, &instance, &device, &mut data)?;
         create_swapchain_image_views(&device, &mut data)?;
+        create_pipeline(&device, &mut data)?;
         Ok(Self { entry, instance, data, device })
     }
 
